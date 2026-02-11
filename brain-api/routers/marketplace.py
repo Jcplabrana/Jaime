@@ -63,7 +63,8 @@ async def list_templates(
             "total": len(rows),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"List templates failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/templates")
@@ -81,7 +82,8 @@ async def create_template(data: TemplateCreate):
         )
         return {"status": "published", "id": tid}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Create template failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/templates/{template_id}/install")
@@ -107,7 +109,8 @@ async def install_template(template_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Install template failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.patch("/templates/{template_id}/rate")
@@ -120,4 +123,5 @@ async def rate_template(template_id: str, data: RatingUpdate):
         )
         return {"status": "rated", "template_id": template_id, "rating": data.rating}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Rate template failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

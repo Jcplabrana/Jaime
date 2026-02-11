@@ -153,7 +153,7 @@ async def get_agent_tasks(agent_name: str, status: Optional[str] = None, limit: 
         return {"agent": agent_name, "tasks": tasks, "total": len(tasks)}
     except Exception as e:
         logger.error(f"Tasks query failed: {e}")
-        return {"agent": agent_name, "tasks": [], "total": 0, "error": str(e)}
+        return {"agent": agent_name, "tasks": [], "total": 0, "error": "Query failed"}
 
 
 @router.post("/delegate")
@@ -199,7 +199,8 @@ async def delegate_task(delegation: TaskDelegation):
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delegation failed: {e}")
+        logger.error(f"Delegation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Delegation failed")
 
 
 @router.patch("/tasks/{task_id}")
@@ -237,4 +238,5 @@ async def update_task(task_id: str, update: TaskUpdate):
 
         return {"status": "updated", "task_id": task_id, "new_status": update.status}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Update failed: {e}")
+        logger.error(f"Task update failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Update failed")

@@ -4,21 +4,26 @@ Reads from environment variables or .env file.
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    # PostgreSQL
-    database_url: str = "postgresql+asyncpg://jarvis:jarvis_secret_2026@localhost:5432/jarvis_brain"
+    # PostgreSQL (REQUIRED — no hardcoded password)
+    database_url: str = Field(..., description="PostgreSQL connection URL")
 
-    # Redis
-    redis_url: str = "redis://:jarvis_redis_2026@localhost:6379/0"
+    # Redis (REQUIRED — no hardcoded password)
+    redis_url: str = Field(..., description="Redis connection URL")
     redis_cache_ttl: int = 3600  # 1 hour default
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
     embedding_model: str = "phi3"
     embedding_dimensions: int = 2560
+
+    # Security
+    api_key: str = ""  # Empty = auth disabled (dev mode)
+    cors_origins: str = "http://localhost:3000"
 
     # General
     log_level: str = "info"

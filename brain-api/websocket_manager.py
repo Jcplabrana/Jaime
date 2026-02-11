@@ -6,7 +6,7 @@ Part of Sprint 5C: WebSocket Real-Time.
 
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import WebSocket
@@ -44,7 +44,7 @@ class ConnectionManager:
         message = {
             "type": event_type,
             "data": data or {},
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         disconnected = []
@@ -59,6 +59,17 @@ class ConnectionManager:
 
         for conn in disconnected:
             self.disconnect(conn)
+
+    async def close_all(self) -> None:
+        """Gracefully close all WebSocket connections (for shutdown)."""
+        for connection in list(self.active_connections):
+            try:
+                if connection.client_state == WebSocketState.CONNECTED:
+                    await connection.close(code=1001, reason="Server shutting down")
+            except Exception:
+                pass
+        self.active_connections.clear()
+        logger.info("All WebSocket connections closed.")
 
     @property
     def connection_count(self) -> int:

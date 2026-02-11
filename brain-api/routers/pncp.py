@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 import database
 import ollama_client
+from utils.math import cosine_similarity
+from utils.sanitize import escape_ilike
 
 logger = logging.getLogger("jarvis-brain.pncp")
 router = APIRouter()
@@ -56,7 +58,7 @@ async def create_licitacao(data: LicitacaoCreate):
         )
         return {"status": "created", "id": lid, "pncp_id": data.pncp_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Create failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create licitação")
 
 
 @router.get("/licitacoes")
@@ -99,7 +101,7 @@ async def list_licitacoes(
 
         return {"licitacoes": items, "total": int(total or 0), "limit": limit, "offset": offset}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/analyze")
@@ -125,7 +127,7 @@ async def analyze_licitacao(data: AnaliseRequest):
 
         return {"status": "analyzed", "id": aid, "licitacao_id": data.licitacao_id, "score": data.score}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        raise HTTPException(status_code=500, detail="Analysis failed")
 
 
 @router.get("/search")
@@ -142,11 +144,11 @@ async def search_licitacoes(q: str, limit: int = 10):
                 WHERE objeto ILIKE $1 OR orgao ILIKE $1
                 ORDER BY created_at DESC LIMIT $2
                 """,
-                f"%{q}%", limit,
+                f"%{escape_ilike(q)}%", limit,
             )
             return {"query": q, "method": "text", "results": [dict(r) for r in rows], "total": len(rows)}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Search failed")
 
     # Semantic search with embeddings
     try:
@@ -157,7 +159,7 @@ async def search_licitacoes(q: str, limit: int = 10):
         scored = []
         for row in rows:
             if row["embedding"]:
-                sim = _cosine_similarity(query_embedding, list(row["embedding"]))
+                sim = cosine_similarity(query_embedding, list(row["embedding"]))
                 scored.append({
                     "id": row["id"],
                     "pncp_id": row["pncp_id"],
@@ -171,15 +173,4 @@ async def search_licitacoes(q: str, limit: int = 10):
         scored.sort(key=lambda x: x["similarity"], reverse=True)
         return {"query": q, "method": "semantic", "results": scored[:limit], "total": len(scored[:limit])}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    if len(a) != len(b) or not a:
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x * x for x in a) ** 0.5
-    norm_b = sum(x * x for x in b) ** 0.5
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
+        raise HTTPException(status_code=500, detail="Search failed")

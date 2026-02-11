@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 import database
 import cache
 import ollama_client
+from utils.math import cosine_similarity
+from utils.sanitize import escape_ilike
 
 logger = logging.getLogger("jarvis-brain.memory")
 router = APIRouter()
@@ -29,14 +31,14 @@ class MemoryStoreRequest(BaseModel):
 
 class MemoryRecallRequest(BaseModel):
     agent_name: str
-    query: str = Field(..., description="Search query")
+    query: str = Field(..., description="Search query", max_length=2000)
     max_results: int = Field(default=5, ge=1, le=50)
     min_importance: float = Field(default=0.0, ge=0, le=1)
 
 
 class MemorySearchRequest(BaseModel):
     agent_name: Optional[str] = None
-    query: str = Field(..., description="Semantic search query")
+    query: str = Field(..., description="Semantic search query", max_length=2000)
     max_results: int = Field(default=10, ge=1, le=50)
 
 
@@ -127,7 +129,7 @@ async def recall_memory(request: MemoryRecallRequest):
                 LIMIT $4
                 """,
                 request.agent_name, request.min_importance,
-                f"%{request.query}%", request.max_results,
+                f"%{escape_ilike(request.query)}%", request.max_results,
             )
             if rows:
                 source_layer = "l2_postgres"
@@ -171,7 +173,7 @@ async def recall_memory(request: MemoryRecallRequest):
                     scored = []
                     for row in rows:
                         if row["embedding"]:
-                            sim = _cosine_similarity(query_embedding, list(row["embedding"]))
+                            sim = cosine_similarity(query_embedding, list(row["embedding"]))
                             scored.append((sim, row))
 
                     scored.sort(key=lambda x: x[0], reverse=True)
@@ -235,12 +237,12 @@ async def semantic_search(request: MemorySearchRequest):
             *params,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     scored = []
     for row in rows:
         if row["embedding"]:
-            sim = _cosine_similarity(query_embedding, list(row["embedding"]))
+            sim = cosine_similarity(query_embedding, list(row["embedding"]))
             scored.append({
                 "id": row["id"],
                 "agent_name": row["agent_name"],
@@ -286,7 +288,7 @@ async def memory_stats(agent_name: str):
         }
     except Exception as e:
         logger.error(f"Stats query failed: {e}")
-        return {"agent": agent_name, "total_memories": 0, "error": str(e)}
+        return {"agent": agent_name, "total_memories": 0, "error": "Query failed"}
 
 
 @router.delete("/{agent_name}/{key}")
@@ -308,16 +310,4 @@ async def delete_memory(agent_name: str, key: str):
             "layers_cleared": ["l1_redis", "l2_postgres", "l3_embedding"],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delete failed: {e}")
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Compute cosine similarity between two vectors."""
-    if len(a) != len(b) or not a:
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x * x for x in a) ** 0.5
-    norm_b = sum(x * x for x in b) ** 0.5
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
+        raise HTTPException(status_code=500, detail="Delete failed")

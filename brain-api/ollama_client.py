@@ -4,6 +4,7 @@ Connects to Ollama running on host with GTX 1070.
 Cost: $0. Target: <500ms per embedding via GPU.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -13,6 +14,28 @@ from config import get_settings
 
 logger = logging.getLogger("jarvis-brain.ollama")
 
+# Persistent HTTP client (connection pooling)
+_client: Optional[httpx.AsyncClient] = None
+
+
+async def get_client() -> httpx.AsyncClient:
+    """Get or create a persistent httpx client with connection pooling."""
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(
+            timeout=60.0,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _client
+
+
+async def close_client() -> None:
+    """Close the persistent httpx client."""
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
+
 
 async def generate_embedding(text: str) -> Optional[list[float]]:
     """
@@ -21,20 +44,21 @@ async def generate_embedding(text: str) -> Optional[list[float]]:
     """
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{settings.ollama_base_url}/api/embed",
-                json={
-                    "model": settings.embedding_model,
-                    "input": text,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            embeddings = data.get("embeddings", [])
-            if embeddings:
-                return embeddings[0]
-            return None
+        client = await get_client()
+        response = await client.post(
+            f"{settings.ollama_base_url}/api/embed",
+            json={
+                "model": settings.embedding_model,
+                "input": text,
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        embeddings = data.get("embeddings", [])
+        if embeddings:
+            return embeddings[0]
+        return None
     except httpx.TimeoutException:
         logger.error("Ollama embedding timeout (>30s)")
         return None
@@ -44,27 +68,26 @@ async def generate_embedding(text: str) -> Optional[list[float]]:
 
 
 async def generate_embeddings_batch(texts: list[str]) -> list[Optional[list[float]]]:
-    """Batch embedding generation. Each text gets its own vector."""
-    results = []
-    for text in texts:
-        emb = await generate_embedding(text)
-        results.append(emb)
-    return results
+    """Batch embedding generation using asyncio.gather for concurrency."""
+    return await asyncio.gather(*[generate_embedding(t) for t in texts])
 
 
 async def check_health() -> bool:
     """Check if Ollama is reachable and model is loaded."""
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{settings.ollama_base_url}/api/tags")
-            if response.status_code == 200:
-                models = [m["name"] for m in response.json().get("models", [])]
-                has_model = any(settings.embedding_model in m for m in models)
-                if not has_model:
-                    logger.warning(f"Ollama running but model '{settings.embedding_model}' not found. Available: {models}")
-                return True
-            return False
+        client = await get_client()
+        response = await client.get(
+            f"{settings.ollama_base_url}/api/tags",
+            timeout=5.0,
+        )
+        if response.status_code == 200:
+            models = [m["name"] for m in response.json().get("models", [])]
+            has_model = any(settings.embedding_model in m for m in models)
+            if not has_model:
+                logger.warning(f"Ollama running but model '{settings.embedding_model}' not found. Available: {models}")
+            return True
+        return False
     except Exception as e:
         logger.error(f"Ollama health check failed: {e}")
         return False
@@ -86,28 +109,29 @@ async def generate_text(
 
     start = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{settings.ollama_base_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                    },
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            latency_ms = int((time.monotonic() - start) * 1000)
-            return {
-                "response": data.get("response", "").strip(),
-                "tokens_used": data.get("eval_count", 0),
-                "latency_ms": latency_ms,
+        client = await get_client()
+        response = await client.post(
+            f"{settings.ollama_base_url}/api/generate",
+            json={
                 "model": model,
-            }
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": max_tokens,
+                },
+            },
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return {
+            "response": data.get("response", "").strip(),
+            "tokens_used": data.get("eval_count", 0),
+            "latency_ms": latency_ms,
+            "model": model,
+        }
     except httpx.TimeoutException:
         logger.error("Ollama generate timeout (>60s)")
         raise
@@ -120,10 +144,13 @@ async def list_models() -> list[str]:
     """List available Ollama models."""
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{settings.ollama_base_url}/api/tags")
-            if response.status_code == 200:
-                return [m["name"] for m in response.json().get("models", [])]
+        client = await get_client()
+        response = await client.get(
+            f"{settings.ollama_base_url}/api/tags",
+            timeout=5.0,
+        )
+        if response.status_code == 200:
+            return [m["name"] for m in response.json().get("models", [])]
     except Exception:
         pass
     return []

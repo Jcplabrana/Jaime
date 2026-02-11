@@ -258,6 +258,33 @@ VALUES (
         '{"model": "ollama/phi3", "max_iterations": 20}'
     );
 -- ============================================
+-- Training Mode (planejamento completo)
+-- ============================================
+CREATE TABLE jarvis.training_scenarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scenario_text TEXT NOT NULL,
+    expected_response TEXT,
+    difficulty VARCHAR(20) CHECK (
+        difficulty IN ('easy', 'medium', 'hard', 'expert')
+    ),
+    category VARCHAR(50),
+    agent_name VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE jarvis.training_results (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scenario_id UUID REFERENCES jarvis.training_scenarios(id) ON DELETE CASCADE,
+    agent_name VARCHAR(100) NOT NULL,
+    actual_response TEXT,
+    feedback VARCHAR(20) CHECK (feedback IN ('thumbs_up', 'thumbs_down', 'edit')),
+    edited_response TEXT,
+    tokens_used INTEGER DEFAULT 0,
+    latency_ms INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_training_results_scenario ON jarvis.training_results(scenario_id);
+CREATE INDEX idx_training_results_agent ON jarvis.training_results(agent_name);
+-- ============================================
 -- Training Scenarios (seed data)
 -- ============================================
 INSERT INTO jarvis.training_scenarios (
@@ -289,33 +316,6 @@ VALUES (
         'jarvis'
     );
 -- ============================================
--- Training Mode (planejamento completo)
--- ============================================
-CREATE TABLE jarvis.training_scenarios (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    scenario_text TEXT NOT NULL,
-    expected_response TEXT,
-    difficulty VARCHAR(20) CHECK (
-        difficulty IN ('easy', 'medium', 'hard', 'expert')
-    ),
-    category VARCHAR(50),
-    agent_name VARCHAR(100),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE TABLE jarvis.training_results (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    scenario_id UUID REFERENCES jarvis.training_scenarios(id) ON DELETE CASCADE,
-    agent_name VARCHAR(100) NOT NULL,
-    actual_response TEXT,
-    feedback VARCHAR(20) CHECK (feedback IN ('thumbs_up', 'thumbs_down', 'edit')),
-    edited_response TEXT,
-    tokens_used INTEGER DEFAULT 0,
-    latency_ms INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_training_results_scenario ON jarvis.training_results(scenario_id);
-CREATE INDEX idx_training_results_agent ON jarvis.training_results(agent_name);
--- ============================================
 -- Materialized Views for Dashboard
 -- ============================================
 CREATE MATERIALIZED VIEW jarvis.mv_agent_stats AS
@@ -341,11 +341,11 @@ CREATE UNIQUE INDEX idx_mv_agent_stats ON jarvis.mv_agent_stats(agent_name);
 -- ============================================
 -- Partial index: only pending tasks (hot path for task queue)
 CREATE INDEX idx_agent_tasks_pending ON jarvis.agent_tasks(priority DESC, created_at ASC)
-WHERE status = 'pending';
+WHERE status = 'inbox';
 -- Composite: task status + priority for sorted queries
 CREATE INDEX idx_agent_tasks_status_priority ON jarvis.agent_tasks(status, priority DESC);
 -- Composite: agent + status for per-agent task filtering
-CREATE INDEX idx_agent_tasks_agent_status ON jarvis.agent_tasks(target_agent, status);
+CREATE INDEX idx_agent_tasks_agent_status ON jarvis.agent_tasks(assigned_agent, status);
 -- JSONB: workflow nodes for type-based queries
 CREATE INDEX idx_workflows_nodes_gin ON jarvis.workflows USING GIN(nodes);
 -- JSONB: workflow edges for graph traversal queries

@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import database
 import cache
 from config import get_settings
+from middleware.auth import ApiKeyMiddleware, verify_ws_token
 from routers import memory, agents, analytics, health, pncp, training, marketplace, workflows, cache_stats
 from websocket_manager import manager as ws_manager
 
@@ -38,26 +39,33 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Cleanup
+    # Cleanup — graceful WebSocket close first
+    await ws_manager.close_all()
     await database.close_pool()
     await cache.close_redis()
     logger.info("🧠 Jarvis Brain API shut down.")
 
 
+settings = get_settings()
+
 app = FastAPI(
     title="Jarvis Brain API",
     description="Memory Engine, Agent Management & Analytics for OpenClaw Jarvis Edition",
-    version=get_settings().api_version,
+    version=settings.api_version,
     lifespan=lifespan,
 )
 
+# CORS — restricted origins from config
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API Key auth middleware
+app.add_middleware(ApiKeyMiddleware)
 
 app.include_router(health.router, tags=["Health"])
 app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
@@ -73,6 +81,11 @@ app.include_router(cache_stats.router, prefix="/api/cache", tags=["Cache"])
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Real-time event stream for Jarvis frontend."""
+    # Validate auth before accepting connection
+    if not verify_ws_token(websocket):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+
     await ws_manager.connect(websocket)
     # Send initial status
     await ws_manager.send_personal(websocket, {

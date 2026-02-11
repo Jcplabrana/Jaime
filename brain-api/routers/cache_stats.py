@@ -65,7 +65,7 @@ async def cache_stats(agent_name: Optional[str] = None):
         }
     except Exception as e:
         logger.error(f"Cache stats error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/daily")
@@ -102,4 +102,4 @@ async def cache_daily(days: int = 7):
         ]
     except Exception as e:
         logger.error(f"Cache daily stats error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

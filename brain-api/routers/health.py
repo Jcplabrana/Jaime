@@ -5,6 +5,7 @@ from fastapi import APIRouter
 import database
 import cache
 import ollama_client
+from config import get_settings
 
 router = APIRouter()
 
@@ -15,7 +16,7 @@ async def health_check():
     return {
         "status": "ok",
         "service": "jarvis-brain-api",
-        "version": "1.0.0",
+        "version": get_settings().api_version,
     }
 
 

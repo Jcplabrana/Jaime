@@ -65,7 +65,8 @@ async def list_scenarios(
             "total": len(rows),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"List scenarios failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/scenarios")
@@ -83,7 +84,8 @@ async def create_scenario(data: ScenarioCreate):
         )
         return {"status": "created", "id": sid}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Create scenario failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/scenarios/{scenario_id}/run")
@@ -117,7 +119,7 @@ async def run_scenario(scenario_id: str):
         raise
     except Exception as e:
         logger.error(f"Scenario run failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Scenario execution failed: {e}")
+        raise HTTPException(status_code=500, detail="Scenario execution failed")
 
 
 @router.post("/feedback")
@@ -136,7 +138,8 @@ async def submit_feedback(data: FeedbackCreate):
         )
         return {"status": "recorded", "id": rid, "feedback": data.feedback}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Submit feedback failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -174,4 +177,5 @@ async def training_stats(agent_name: Optional[str] = None):
             "avg_latency_ms": int(row["avg_latency"] or 0),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Training stats failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
