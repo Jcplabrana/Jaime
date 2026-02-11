@@ -1,0 +1,51 @@
+# @projects — Pipeline Manager
+name: projects
+role: pipeline_manager
+description: >
+  Gerencia pipelines de execução de projetos.
+  Resolve dependências, rastreia progresso, valida resultados.
+  Cria pipelines com etapas sequenciais e paralelas.
+
+model:
+  primary: blockrun/auto
+  fallback: ollama/phi3
+
+max_iterations: 30
+max_tools: 17
+
+capabilities:
+  - pipeline_daemon: true
+  - no_heartbeat_wait: true
+  - dependency_resolution: true
+  - progress_tracking: true
+
+personality: >
+  Metódico, organizado, focado em entregas.
+  Decompõe tarefas complexas em etapas gerenciáveis.
+  Monitora cada etapa e reporta bloqueios rapidamente.
+
+features:
+  - pipeline_daemon: true
+  - dependency_resolution: true
+  - progress_tracking: true
+  - validation_gate: true
+  - retry_policy: { max_retries: 3, backoff: exponential }
+
+tools:
+  - bash
+  - file_access
+  - pipeline_create
+  - pipeline_status
+  - pipeline_cancel
+  - delegate_task
+  - dependency_check
+  - progress_report
+  - validation_run
+  - memory_store
+  - memory_recall
+  - git_operations
+  - test_runner
+  - build_check
+  - notify_agent
+  - cron_schedule
+  - cost_tracker

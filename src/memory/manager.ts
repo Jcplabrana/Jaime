@@ -56,6 +56,7 @@ import { searchKeyword, searchVector } from "./manager-search.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
 import { loadSqliteVecExtension } from "./sqlite-vec.js";
 import { requireNodeSqlite } from "./sqlite.js";
+import { RedisMemoryCache } from "./redis-cache.js";
 
 type MemoryIndexMeta = {
   model: string;
@@ -105,6 +106,25 @@ const EMBEDDING_BATCH_TIMEOUT_LOCAL_MS = 10 * 60_000;
 const log = createSubsystemLogger("memory");
 
 const INDEX_CACHE = new Map<string, MemoryIndexManager>();
+
+/** Shared Redis L1 cache — singleton, connected at startup. */
+let sharedRedisCache: RedisMemoryCache | null = null;
+
+/** Initialize the shared Redis cache. Call once at application boot. */
+export async function initRedisCache(url?: string): Promise<boolean> {
+  if (sharedRedisCache) return sharedRedisCache.isConnected();
+  sharedRedisCache = new RedisMemoryCache({
+    url,
+    keyPrefix: "jarvis:mem:",
+    defaultTtl: 3600,
+  });
+  return sharedRedisCache.connect();
+}
+
+/** Get the shared Redis cache instance (may be null if not initialized). */
+export function getRedisCache(): RedisMemoryCache | null {
+  return sharedRedisCache;
+}
 
 const vectorToBlob = (embedding: number[]): Buffer =>
   Buffer.from(new Float32Array(embedding).buffer);
@@ -265,6 +285,54 @@ export class MemoryIndexManager implements MemorySearchManager {
   }
 
   async search(
+    query: string,
+    opts?: {
+      maxResults?: number;
+      minScore?: number;
+      sessionKey?: string;
+    },
+  ): Promise<MemorySearchResult[]> {
+    // Per-agent namespace key for Redis L1 cascade
+    const cacheKey = this.buildSearchCacheKey(query, opts);
+    const redis = sharedRedisCache;
+
+    // L1: Redis cache (fast, <5ms on hit)
+    if (redis?.isConnected()) {
+      const { value, source } = await redis.getOrSet<MemorySearchResult[]>(
+        cacheKey,
+        () => this.searchInternal(query, opts),
+        600, // 10min TTL for search results
+      );
+      if (source === "cache") {
+        log.debug(`[cascade] L1 Redis HIT for agent=${this.agentId} query="${query.slice(0, 40)}"`);
+      }
+      return value;
+    }
+
+    // L2+L3: SQLite + Embeddings (existing path)
+    return this.searchInternal(query, opts);
+  }
+
+  /** Per-agent namespace key for cache isolation. */
+  private agentNamespace(): string {
+    return `agent:${this.agentId}:`;
+  }
+
+  /** Build a deterministic cache key scoped to the agent. */
+  private buildSearchCacheKey(
+    query: string,
+    opts?: { maxResults?: number; minScore?: number },
+  ): string {
+    const ns = this.agentNamespace();
+    const maxR = opts?.maxResults ?? this.settings.query.maxResults;
+    const minS = opts?.minScore ?? this.settings.query.minScore;
+    // Simple hash to keep keys short
+    const qHash = query.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 80);
+    return `${ns}search:${qHash}:${maxR}:${minS}`;
+  }
+
+  /** Core search logic (L2: SQLite + L3: Embeddings). */
+  private async searchInternal(
     query: string,
     opts?: {
       maxResults?: number;

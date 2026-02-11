@@ -1,0 +1,17 @@
+{
+  "name": "@openclaw/clawrouter",
+  "version": "2026.2.6-3",
+  "description": "ClawRouter smart LLM routing provider for OpenClaw",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

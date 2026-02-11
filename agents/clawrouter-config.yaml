@@ -1,0 +1,89 @@
+# Jaime Hybrid Agent Configuration
+# Merge with ~/.openclaw/openclaw.yaml
+#
+# Architecture:
+#   blockrun/auto → Cloud (ClawRouter smart routing, x402 payment)
+#   ollama/phi3   → Local GPU (via Tailscale tunnel, $0)
+
+# ─── Plugin Registration ─────────────────────────────
+plugins:
+  - id: "@blockrun/clawrouter"
+    config:
+      routing:
+        tiers:
+          SIMPLE:
+            primary: "google/gemini-2.5-flash"
+            fallback: ["deepseek/deepseek-chat"]
+          MEDIUM:
+            primary: "deepseek/deepseek-chat"
+            fallback: ["openai/gpt-4o-mini", "google/gemini-2.5-flash"]
+          COMPLEX:
+            primary: "anthropic/claude-sonnet-4"
+            fallback: ["openai/gpt-4o", "google/gemini-2.5-pro"]
+          REASONING:
+            primary: "deepseek/deepseek-reasoner"
+            fallback: ["openai/o3-mini", "anthropic/claude-sonnet-4"]
+
+# ─── Providers ────────────────────────────────────────
+models:
+  providers:
+    # Cloud provider (smart routing, 30+ models)
+    blockrun:
+      baseUrl: "http://localhost:8402/v1"
+      apiKey: "x402-proxy-handles-auth"
+      api: openai-completions
+      authHeader: false
+
+    # Local GPU provider (via Tailscale tunnel)
+    ollama:
+      baseUrl: "http://100.116.92.48:11434/v1"
+      apiKey: "ollama"
+      api: openai-completions
+      authHeader: false
+
+# ─── Agent Routing ────────────────────────────────────
+# INTERACTIVE agents → blockrun (fast, smart, paid)
+# BACKGROUND agents  → ollama   (slow, simple, free)
+agents:
+  defaults:
+    model:
+      primary: blockrun/auto   # Default for all agents
+
+  list:
+    # ── INTERACTIVE (blockrun/auto → cloud) ──────────
+    - id: jarvis
+      model:
+        primary: blockrun/auto        # Orchestrator needs best routing
+
+    - id: projects
+      model:
+        primary: blockrun/auto
+
+    - id: security
+      model:
+        primary: blockrun/auto        # Security needs top-tier models
+
+    - id: frontend
+      model:
+        primary: blockrun/auto        # Code gen → auto routes to claude-sonnet
+
+    - id: backend
+      model:
+        primary: blockrun/auto
+
+    # ── BACKGROUND (ollama → local GPU, $0) ──────────
+    - id: docs
+      model:
+        primary: ollama/phi3          # Docs tolerate 2-8s latency
+
+    - id: workspace
+      model:
+        primary: ollama/phi3          # File management is simple
+
+    - id: backup
+      model:
+        primary: ollama/phi3          # Daily summaries, no rush
+
+    - id: moltbook
+      model:
+        primary: ollama/phi3          # Social feed batch processing

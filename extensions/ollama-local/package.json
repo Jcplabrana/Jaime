@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/ollama-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ollama local GPU provider via Tailscale tunnel",
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "openclaw": "workspace:*"
+  }
+}

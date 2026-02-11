@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/* ============================================
+   JARVIS EDITION - Cyberpunk Design System
+   ============================================ */
+
+@theme {
+  /* Neon Colors */
+  --color-neon-cyan: #00f0ff;
+  --color-neon-magenta: #ff00e5;
+  --color-neon-green: #39ff14;
+  --color-neon-amber: #ffb700;
+  --color-neon-red: #ff3e3e;
+
+  /* Background Layers */
+  --color-bg-primary: #0a0a0f;
+  --color-bg-secondary: #12121a;
+  --color-bg-tertiary: #1a1a2e;
+  --color-bg-card: #16162a;
+  --color-bg-hover: #1e1e3a;
+
+  /* Surface */
+  --color-surface-glass: rgba(255, 255, 255, 0.03);
+  --color-surface-border: rgba(255, 255, 255, 0.08);
+  --color-surface-border-hover: rgba(0, 240, 255, 0.3);
+
+  /* Text */
+  --color-text-primary: #e8e8f0;
+  --color-text-secondary: #8888aa;
+  --color-text-muted: #555570;
+
+  /* Status */
+  --color-status-online: #39ff14;
+  --color-status-offline: #ff3e3e;
+  --color-status-warning: #ffb700;
+  --color-status-info: #00f0ff;
+
+  /* Glow */
+  --shadow-neon-cyan:
+    0 0 10px rgba(0, 240, 255, 0.3), 0 0 40px rgba(0, 240, 255, 0.1);
+  --shadow-neon-magenta:
+    0 0 10px rgba(255, 0, 229, 0.3), 0 0 40px rgba(255, 0, 229, 0.1);
+  --shadow-neon-green:
+    0 0 10px rgba(57, 255, 20, 0.3), 0 0 40px rgba(57, 255, 20, 0.1);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+
+  /* Spacing */
+  --spacing-sidebar: 280px;
+  --spacing-sidebar-collapsed: 72px;
+  --spacing-header: 64px;
+
+  /* Animation */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Scrollbar
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.3);
+}
+
+/* ============================================
+   Glow Effects
+   ============================================ */
+
+.glow-cyan {
+  box-shadow: var(--shadow-neon-cyan);
+}
+
+.glow-magenta {
+  box-shadow: var(--shadow-neon-magenta);
+}
+
+.glow-green {
+  box-shadow: var(--shadow-neon-green);
+}
+
+.glow-text-cyan {
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+.glow-text-green {
+  text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+}
+
+/* ============================================
+   Glass Card
+   ============================================ */
+
+.glass-card {
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-surface-border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--color-surface-border-hover);
+  box-shadow: var(--shadow-neon-cyan);
+}
+
+/* ============================================
+   Gradient Border
+   ============================================ */
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    var(--color-neon-cyan),
+    var(--color-neon-magenta)
+  );
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ============================================
+   Pulse Animation
+   ============================================ */
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ============================================
+   Grid Pattern Background
+   ============================================ */
+
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}

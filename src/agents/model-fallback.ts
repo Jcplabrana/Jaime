@@ -201,6 +201,19 @@ function resolveFallbackCandidates(params: {
     addCandidate({ provider: primary.provider, model: primary.model }, false);
   }
 
+  // Bidirectional cross-provider fallback (Jaime hybrid routing)
+  // Cloud providers get Ollama as last-resort safety net ($0, local GPU)
+  // Ollama gets cloud as last-resort safety net (when GPU unavailable)
+  const CLOUD_PROVIDERS = new Set(["anthropic", "openai", "blockrun", "google", "deepseek"]);
+  const isCloudPrimary = CLOUD_PROVIDERS.has(provider);
+  const isOllamaPrimary = provider === "ollama";
+
+  if (isCloudPrimary) {
+    addCandidate({ provider: "ollama", model: "phi3" }, false);
+  } else if (isOllamaPrimary) {
+    addCandidate({ provider: "blockrun", model: "auto" }, false);
+  }
+
   return candidates;
 }
 
